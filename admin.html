@@ -6,7 +6,7 @@
 <title>Star Live Official — Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700;800&family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="./style.css" />
+<link rel="stylesheet" href="./assets/css/style.css" />
 </head>
 <body>
 <div class="stage-bg"></div>
@@ -16,10 +16,12 @@
   <div class="pass-card" style="width:min(360px, 92vw);">
     <div style="text-align:center;">
       <div class="marquee-brand"><span class="bulb"></span> STAR LIVE OFFICIAL <span class="bulb"></span></div>
-      <h1 class="display" style="font-size:19px; font-weight:700; margin:14px 0 4px;">เข้าสู่ระบบผู้ดูแล</h1>
-      <p class="muted" style="font-size:13px; margin:0;">สำหรับควบคุมการถ่ายทอดสดและรหัส PIN</p>
+      <h1 class="display" id="authTitle" style="font-size:19px; font-weight:700; margin:14px 0 4px;">เข้าสู่ระบบผู้ดูแล</h1>
+      <p class="muted" id="authSubtitle" style="font-size:13px; margin:0;">สำหรับควบคุมการถ่ายทอดสดและรหัส PIN</p>
     </div>
     <div class="perforation"></div>
+
+    <!-- เข้าสู่ระบบ -->
     <form id="loginForm">
       <div style="margin-bottom:14px;">
         <label class="field-label" for="adminEmail">อีเมลแอดมิน</label>
@@ -31,6 +33,34 @@
       </div>
       <p class="error-text" id="loginError"></p>
       <button type="submit" class="btn-marquee" id="loginBtn">เข้าสู่ระบบ</button>
+      <p class="muted" style="text-align:center; font-size:13px; margin-top:16px;">
+        ยังไม่มีบัญชี? <a href="#" id="showSignup" style="color:var(--amber); text-decoration:none;">สมัครสมาชิกแอดมิน</a>
+      </p>
+    </form>
+
+    <!-- สมัครสมาชิก -->
+    <form id="signupForm" style="display:none;">
+      <div style="margin-bottom:14px;">
+        <label class="field-label" for="signupEmail">อีเมล</label>
+        <input id="signupEmail" type="email" class="field-input" placeholder="admin@example.com" required />
+      </div>
+      <div style="margin-bottom:14px;">
+        <label class="field-label" for="signupPassword">รหัสผ่าน</label>
+        <input id="signupPassword" type="password" class="field-input" placeholder="อย่างน้อย 8 ตัว มีตัวอักษร" required minlength="8" />
+      </div>
+      <div style="margin-bottom:14px;">
+        <label class="field-label" for="signupPasswordConfirm">ยืนยันรหัสผ่าน</label>
+        <input id="signupPasswordConfirm" type="password" class="field-input" placeholder="พิมพ์รหัสผ่านอีกครั้ง" required minlength="8" />
+      </div>
+      <div>
+        <label class="field-label" for="inviteCode">รหัสเชิญแอดมิน</label>
+        <input id="inviteCode" type="text" class="field-input" placeholder="รหัสที่ได้รับจากผู้ดูแลระบบ" required />
+      </div>
+      <p class="error-text" id="signupError"></p>
+      <button type="submit" class="btn-marquee" id="signupBtn">สมัครสมาชิก</button>
+      <p class="muted" style="text-align:center; font-size:13px; margin-top:16px;">
+        มีบัญชีอยู่แล้ว? <a href="#" id="showLogin" style="color:var(--amber); text-decoration:none;">เข้าสู่ระบบ</a>
+      </p>
     </form>
   </div>
 </div>
@@ -87,6 +117,6 @@
   <p id="emptyState" class="muted" style="display:none; text-align:center; padding:40px 0;">ยังไม่มีไลฟ์ในระบบ กด "สร้างไลฟ์ใหม่" เพื่อเริ่มต้น</p>
 </div>
 
-<script type="module" src="./js/main.js"></script>
+<script type="module" src="./assets/js/admin.js"></script>
 </body>
 </html>
