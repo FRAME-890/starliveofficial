@@ -25,10 +25,39 @@ const formError = document.getElementById("formError");
 const sessionList = document.getElementById("sessionList");
 const emptyState = document.getElementById("emptyState");
 
-// ---------- Login gate (Supabase Auth) ----------
-const { data: { session } } = await supabase.auth.getSession();
-if (session) showDashboard();
+// ---------- 1. ฟังก์ชันเริ่มต้นระบบ (Init) ----------
+async function initApp() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      showDashboard();
+    }
+  } catch (err) {
+    console.error("Auth session check error:", err);
+  }
+}
 
+// เรียกใช้ฟังก์ชัน init
+initApp();
+
+// ---------- 2. สลับระหว่างฟอร์ม เข้าสู่ระบบ / สมัครสมาชิก ----------
+document.getElementById("showSignup").addEventListener("click", (e) => {
+  e.preventDefault();
+  loginForm.style.display = "none";
+  signupForm.style.display = "block";
+  authTitle.textContent = "สมัครสมาชิกแอดมิน";
+  authSubtitle.textContent = "ต้องมีรหัสเชิญจากผู้ดูแลระบบเท่านั้น";
+});
+
+document.getElementById("showLogin").addEventListener("click", (e) => {
+  e.preventDefault();
+  signupForm.style.display = "none";
+  loginForm.style.display = "block";
+  authTitle.textContent = "เข้าสู่ระบบผู้ดูแล";
+  authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัส PIN";
+});
+
+// ---------- 3. Login gate (Supabase Auth) ----------
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   loginError.textContent = "";
@@ -55,24 +84,7 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
   location.reload();
 });
 
-// ---------- สลับระหว่างฟอร์ม เข้าสู่ระบบ / สมัครสมาชิก ----------
-document.getElementById("showSignup").addEventListener("click", (e) => {
-  e.preventDefault();
-  loginForm.style.display = "none";
-  signupForm.style.display = "block";
-  authTitle.textContent = "สมัครสมาชิกแอดมิน";
-  authSubtitle.textContent = "ต้องมีรหัสเชิญจากผู้ดูแลระบบเท่านั้น";
-});
-
-document.getElementById("showLogin").addEventListener("click", (e) => {
-  e.preventDefault();
-  signupForm.style.display = "none";
-  loginForm.style.display = "block";
-  authTitle.textContent = "เข้าสู่ระบบผู้ดูแล";
-  authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัส PIN";
-});
-
-// ---------- สมัครสมาชิกแอดมิน (Supabase Auth) ----------
+// ---------- 4. สมัครสมาชิกแอดมิน (Supabase Auth) ----------
 signupForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   signupError.textContent = "";
@@ -98,31 +110,35 @@ signupForm.addEventListener("submit", async (e) => {
   signupBtn.disabled = true;
   signupBtn.textContent = "กำลังสมัครสมาชิก...";
 
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  try {
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
-  signupBtn.disabled = false;
-  signupBtn.textContent = "สมัครสมาชิก";
+    signupBtn.disabled = false;
+    signupBtn.textContent = "สมัครสมาชิก";
 
-  if (error) {
-    signupError.textContent = error.message.includes("already registered")
-      ? "อีเมลนี้สมัครไว้แล้ว กรุณาเข้าสู่ระบบแทน"
-      : "สมัครไม่สำเร็จ: " + error.message;
-    return;
+    if (error) {
+      signupError.textContent = error.message.includes("already registered")
+        ? "อีเมลนี้สมัครไว้แล้ว กรุณาเข้าสู่ระบบแทน"
+        : "สมัครไม่สำเร็จ: " + error.message;
+      return;
+    }
+
+    if (data.user && !data.session) {
+      signupForm.reset();
+      signupError.style.color = "var(--amber)";
+      signupError.textContent = "สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
+      return;
+    }
+
+    showDashboard();
+  } catch (err) {
+    signupBtn.disabled = false;
+    signupBtn.textContent = "สมัครสมาชิก";
+    signupError.textContent = "เกิดข้อผิดพลาดไม่ทราบสาเหตุ: " + err.message;
   }
-
-  // ถ้าโปรเจกต์เปิด "Confirm email" ไว้ ผู้ใช้ต้องกดยืนยันในอีเมลก่อนถึงจะล็อกอินได้
-  if (data.user && !data.session) {
-    signupForm.reset();
-    signupError.style.color = "var(--amber)";
-    signupError.textContent = "สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
-    return;
-  }
-
-  // ถ้าปิด email confirmation ไว้ จะได้ session ทันทีและเข้าแดชบอร์ดได้เลย
-  showDashboard();
 });
 
-// เผื่อ session หมดอายุระหว่างใช้งาน (เช่น token ถูก revoke) ให้เด้งกลับหน้า login อัตโนมัติ
+// ---------- 5. ติดตามสถานะ Auth ----------
 supabase.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_OUT") {
     dashboard.style.display = "none";
@@ -136,7 +152,7 @@ function showDashboard() {
   loadSessions();
 }
 
-// ---------- Form open/close ----------
+// ---------- 6. Form open/close ----------
 document.getElementById("newSessionBtn").addEventListener("click", () => openForm());
 document.getElementById("cancelFormBtn").addEventListener("click", () => closeForm());
 
@@ -164,7 +180,7 @@ function closeForm() {
   sessionForm.reset();
 }
 
-// ---------- Active toggle ----------
+// ---------- 7. Active toggle ----------
 let toggleState = false;
 function setToggle(state) {
   toggleState = state;
@@ -172,12 +188,12 @@ function setToggle(state) {
 }
 activeToggle.addEventListener("click", () => setToggle(!toggleState));
 
-// ---------- Random PIN ----------
+// ---------- 8. Random PIN ----------
 document.getElementById("randomPinBtn").addEventListener("click", () => {
   pinInput.value = String(Math.floor(100000 + Math.random() * 900000));
 });
 
-// ---------- Save (create or update) ----------
+// ---------- 9. Save (create or update) ----------
 sessionForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   formError.textContent = "";
@@ -213,7 +229,7 @@ sessionForm.addEventListener("submit", async (e) => {
   loadSessions();
 });
 
-// ---------- List + row actions ----------
+// ---------- 10. List + row actions ----------
 async function loadSessions() {
   const { data, error } = await supabase
     .from("live_sessions")
