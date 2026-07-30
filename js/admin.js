@@ -1,10 +1,17 @@
 import { supabase } from "./supabaseClient.js";
-import { ADMIN_PASSWORD } from "./config.js";
+import { ADMIN_INVITE_CODE } from "./config.js";
 
 const loginScreen = document.getElementById("loginScreen");
 const dashboard = document.getElementById("dashboard");
 const loginForm = document.getElementById("loginForm");
 const loginError = document.getElementById("loginError");
+const loginBtn = document.getElementById("loginBtn");
+
+const signupForm = document.getElementById("signupForm");
+const signupError = document.getElementById("signupError");
+const signupBtn = document.getElementById("signupBtn");
+const authTitle = document.getElementById("authTitle");
+const authSubtitle = document.getElementById("authSubtitle");
 
 const formCard = document.getElementById("formCard");
 const formTitle = document.getElementById("formTitle");
@@ -18,25 +25,109 @@ const formError = document.getElementById("formError");
 const sessionList = document.getElementById("sessionList");
 const emptyState = document.getElementById("emptyState");
 
-const SESSION_KEY = "star_live_admin_authed";
+// ---------- Login gate (Supabase Auth) ----------
+const { data: { session } } = await supabase.auth.getSession();
+if (session) showDashboard();
 
-// ---------- Login gate ----------
-if (sessionStorage.getItem(SESSION_KEY) === "true") showDashboard();
-
-loginForm.addEventListener("submit", (e) => {
+loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const val = document.getElementById("adminPassword").value;
-  if (val === ADMIN_PASSWORD) {
-    sessionStorage.setItem(SESSION_KEY, "true");
-    showDashboard();
-  } else {
-    loginError.textContent = "รหัสผ่านไม่ถูกต้อง";
+  loginError.textContent = "";
+  loginBtn.disabled = true;
+  loginBtn.textContent = "กำลังเข้าสู่ระบบ...";
+
+  const email = document.getElementById("adminEmail").value.trim();
+  const password = document.getElementById("adminPassword").value;
+
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+  loginBtn.disabled = false;
+  loginBtn.textContent = "เข้าสู่ระบบ";
+
+  if (error) {
+    loginError.textContent = "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+    return;
   }
+  showDashboard();
 });
 
-document.getElementById("logoutBtn").addEventListener("click", () => {
-  sessionStorage.removeItem(SESSION_KEY);
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await supabase.auth.signOut();
   location.reload();
+});
+
+// ---------- สลับระหว่างฟอร์ม เข้าสู่ระบบ / สมัครสมาชิก ----------
+document.getElementById("showSignup").addEventListener("click", (e) => {
+  e.preventDefault();
+  loginForm.style.display = "none";
+  signupForm.style.display = "block";
+  authTitle.textContent = "สมัครสมาชิกแอดมิน";
+  authSubtitle.textContent = "ต้องมีรหัสเชิญจากผู้ดูแลระบบเท่านั้น";
+});
+
+document.getElementById("showLogin").addEventListener("click", (e) => {
+  e.preventDefault();
+  signupForm.style.display = "none";
+  loginForm.style.display = "block";
+  authTitle.textContent = "เข้าสู่ระบบผู้ดูแล";
+  authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัส PIN";
+});
+
+// ---------- สมัครสมาชิกแอดมิน (Supabase Auth) ----------
+signupForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  signupError.textContent = "";
+
+  const email = document.getElementById("signupEmail").value.trim();
+  const password = document.getElementById("signupPassword").value;
+  const passwordConfirm = document.getElementById("signupPasswordConfirm").value;
+  const invite = document.getElementById("inviteCode").value.trim();
+
+  if (invite !== ADMIN_INVITE_CODE) {
+    signupError.textContent = "รหัสเชิญไม่ถูกต้อง";
+    return;
+  }
+  if (password.length < 8) {
+    signupError.textContent = "รหัสผ่านต้องมีอย่างน้อย 8 ตัว";
+    return;
+  }
+  if (password !== passwordConfirm) {
+    signupError.textContent = "รหัสผ่านทั้งสองช่องไม่ตรงกัน";
+    return;
+  }
+
+  signupBtn.disabled = true;
+  signupBtn.textContent = "กำลังสมัครสมาชิก...";
+
+  const { data, error } = await supabase.auth.signUp({ email, password });
+
+  signupBtn.disabled = false;
+  signupBtn.textContent = "สมัครสมาชิก";
+
+  if (error) {
+    signupError.textContent = error.message.includes("already registered")
+      ? "อีเมลนี้สมัครไว้แล้ว กรุณาเข้าสู่ระบบแทน"
+      : "สมัครไม่สำเร็จ: " + error.message;
+    return;
+  }
+
+  // ถ้าโปรเจกต์เปิด "Confirm email" ไว้ ผู้ใช้ต้องกดยืนยันในอีเมลก่อนถึงจะล็อกอินได้
+  if (data.user && !data.session) {
+    signupForm.reset();
+    signupError.style.color = "var(--amber)";
+    signupError.textContent = "สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
+    return;
+  }
+
+  // ถ้าปิด email confirmation ไว้ จะได้ session ทันทีและเข้าแดชบอร์ดได้เลย
+  showDashboard();
+});
+
+// เผื่อ session หมดอายุระหว่างใช้งาน (เช่น token ถูก revoke) ให้เด้งกลับหน้า login อัตโนมัติ
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") {
+    dashboard.style.display = "none";
+    loginScreen.style.display = "flex";
+  }
 });
 
 function showDashboard() {
