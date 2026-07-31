@@ -1,4 +1,5 @@
-import { supabase, extractYouTubeId } from "./supabaseClient.js";
+import { extractYouTubeId } from "./supabaseClient.js";
+import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 const pinBoxes = Array.from(document.querySelectorAll(".pin-box"));
 const pinRow = document.getElementById("pinRow");
@@ -9,6 +10,8 @@ const pinScreen = document.getElementById("pinScreen");
 const playerScreen = document.getElementById("playerScreen");
 const liveTitle = document.getElementById("liveTitle");
 const ytFrame = document.getElementById("ytFrame");
+
+let lockoutTimer = null;
 
 // --- PIN box behaviour: auto-advance, backspace, paste-friendly ---
 pinBoxes.forEach((box, i) => {
@@ -50,18 +53,45 @@ pinForm.addEventListener("submit", async (e) => {
   submitBtn.textContent = "กำลังตรวจสอบ...";
   errorText.textContent = "";
 
-  const { data, error } = await supabase.rpc("verify_pin", { input_pin: pin });
+  let res, body;
+  try {
+    res = await fetch(`${FUNCTIONS_URL}/verify-pin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ pin }),
+    });
+    body = await res.json();
+  } catch (err) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
+    showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
+    return;
+  }
 
   submitBtn.disabled = false;
   submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
 
-  if (error || !data || data.length === 0) {
-    showError("รหัส PIN ไม่ถูกต้อง หรือหมดอายุ");
+  if (res.status === 429) {
+    startLockoutCountdown(body.retry_after_seconds ?? 300);
     return;
   }
 
-  const session = data[0];
-  enterStage(session);
+  if (!res.ok) {
+    if (typeof body.attempts_left === "number" && body.attempts_left > 0) {
+      showError(`รหัส PIN ไม่ถูกต้อง เหลืออีก ${body.attempts_left} ครั้งก่อนถูกล็อกชั่วคราว`);
+    } else if (body.locked) {
+      startLockoutCountdown(300);
+    } else {
+      showError("รหัส PIN ไม่ถูกต้อง หรือหมดอายุ");
+    }
+    return;
+  }
+
+  enterStage(body);
 });
 
 function showError(message) {
@@ -72,15 +102,47 @@ function showError(message) {
   pinRow.classList.add("shake");
 }
 
+function startLockoutCountdown(seconds) {
+  clearInterval(lockoutTimer);
+  submitBtn.disabled = true;
+  let remaining = seconds;
+
+  const render = () => {
+    const m = Math.floor(remaining / 60);
+    const s = String(remaining % 60).padStart(2, "0");
+    errorText.textContent = `กรอกผิดครบ 3 ครั้ง กรุณารอ ${m}:${s} แล้วลองใหม่`;
+  };
+  render();
+
+  lockoutTimer = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearInterval(lockoutTimer);
+      submitBtn.disabled = false;
+      errorText.textContent = "";
+      return;
+    }
+    render();
+  }, 1000);
+}
+
 function enterStage(session) {
-  const videoId = extractYouTubeId(session.youtube_url);
-  if (!videoId) {
-    showError("ลิงก์การถ่ายทอดสดไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ");
-    return;
+  let src = null;
+
+  if (session.platform === "cloudflare") {
+    const code = session.customer_code;
+    src = `https://customer-${code}.cloudflarestream.com/${session.token}/iframe?autoplay=true`;
+  } else {
+    const videoId = extractYouTubeId(session.youtube_url);
+    if (!videoId) {
+      showError("ลิงก์การถ่ายทอดสดไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ");
+      return;
+    }
+    src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
   }
 
   liveTitle.textContent = session.title;
-  ytFrame.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+  ytFrame.src = src;
 
   pinScreen.classList.add("curtain-exit");
   setTimeout(() => {
