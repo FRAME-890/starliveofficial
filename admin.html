@@ -87,8 +87,22 @@
       </div>
 
       <div style="margin-bottom:14px;">
+        <label class="field-label" for="platformSelect">แพลตฟอร์มถ่ายทอดสด</label>
+        <select id="platformSelect" class="field-input">
+          <option value="youtube">YouTube Live (Unlisted)</option>
+          <option value="cloudflare">Cloudflare Stream</option>
+        </select>
+      </div>
+
+      <div id="youtubeField" style="margin-bottom:14px;">
         <label class="field-label" for="urlInput">ลิงก์ YouTube Live</label>
-        <input id="urlInput" class="field-input" placeholder="https://youtube.com/watch?v=..." required />
+        <input id="urlInput" class="field-input" placeholder="https://youtube.com/watch?v=..." />
+      </div>
+
+      <div id="cloudflareField" style="margin-bottom:14px; display:none;">
+        <label class="field-label" for="cfUidInput">Cloudflare Stream Video/Live Input UID</label>
+        <input id="cfUidInput" class="field-input" placeholder="เช่น a1b2c3d4e5f6..." />
+        <p class="muted" style="font-size:12px; margin-top:6px;">คัดลอกจาก Cloudflare Dashboard &gt; Stream &gt; วิดีโอ/Live Input นั้น (ต้องตั้ง Require Signed URLs ไว้ด้วย)</p>
       </div>
 
       <div style="margin-bottom:14px;">
