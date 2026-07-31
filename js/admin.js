@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { ADMIN_INVITE_CODE } from "./config.js";
+import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 const loginScreen = document.getElementById("loginScreen");
 const dashboard = document.getElementById("dashboard");
@@ -18,12 +18,24 @@ const formTitle = document.getElementById("formTitle");
 const sessionForm = document.getElementById("sessionForm");
 const sessionIdInput = document.getElementById("sessionId");
 const titleInput = document.getElementById("titleInput");
+const platformSelect = document.getElementById("platformSelect");
+const youtubeField = document.getElementById("youtubeField");
+const cloudflareField = document.getElementById("cloudflareField");
 const urlInput = document.getElementById("urlInput");
+const cfUidInput = document.getElementById("cfUidInput");
 const pinInput = document.getElementById("pinInput");
 const activeToggle = document.getElementById("activeToggle");
 const formError = document.getElementById("formError");
 const sessionList = document.getElementById("sessionList");
 const emptyState = document.getElementById("emptyState");
+
+platformSelect.addEventListener("change", () => togglePlatformFields(platformSelect.value));
+
+function togglePlatformFields(platform) {
+  const isCloudflare = platform === "cloudflare";
+  youtubeField.style.display = isCloudflare ? "none" : "block";
+  cloudflareField.style.display = isCloudflare ? "block" : "none";
+}
 
 // ---------- Login gate (Supabase Auth) ----------
 const { data: { session } } = await supabase.auth.getSession();
@@ -72,7 +84,7 @@ document.getElementById("showLogin").addEventListener("click", (e) => {
   authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัส PIN";
 });
 
-// ---------- สมัครสมาชิกแอดมิน (Supabase Auth) ----------
+// ---------- สมัครสมาชิกแอดมิน (ผ่าน Edge Function — เช็ครหัสเชิญฝั่งเซิร์ฟเวอร์) ----------
 signupForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   signupError.textContent = "";
@@ -80,12 +92,8 @@ signupForm.addEventListener("submit", async (e) => {
   const email = document.getElementById("signupEmail").value.trim();
   const password = document.getElementById("signupPassword").value;
   const passwordConfirm = document.getElementById("signupPasswordConfirm").value;
-  const invite = document.getElementById("inviteCode").value.trim();
+  const inviteCode = document.getElementById("inviteCode").value.trim();
 
-  if (invite !== ADMIN_INVITE_CODE) {
-    signupError.textContent = "รหัสเชิญไม่ถูกต้อง";
-    return;
-  }
   if (password.length < 8) {
     signupError.textContent = "รหัสผ่านต้องมีอย่างน้อย 8 ตัว";
     return;
@@ -98,27 +106,47 @@ signupForm.addEventListener("submit", async (e) => {
   signupBtn.disabled = true;
   signupBtn.textContent = "กำลังสมัครสมาชิก...";
 
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  let res, body;
+  try {
+    res = await fetch(`${FUNCTIONS_URL}/admin-signup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ email, password, inviteCode }),
+    });
+    body = await res.json();
+  } catch (err) {
+    signupBtn.disabled = false;
+    signupBtn.textContent = "สมัครสมาชิก";
+    signupError.textContent = "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง";
+    return;
+  }
 
   signupBtn.disabled = false;
   signupBtn.textContent = "สมัครสมาชิก";
 
-  if (error) {
-    signupError.textContent = error.message.includes("already registered")
-      ? "อีเมลนี้สมัครไว้แล้ว กรุณาเข้าสู่ระบบแทน"
-      : "สมัครไม่สำเร็จ: " + error.message;
+  if (!res.ok) {
+    const messages = {
+      invalid_invite_code: "รหัสเชิญไม่ถูกต้อง",
+      already_registered: "อีเมลนี้สมัครไว้แล้ว กรุณาเข้าสู่ระบบแทน",
+      weak_password: "รหัสผ่านต้องมีอย่างน้อย 8 ตัว",
+      missing_fields: "กรุณากรอกข้อมูลให้ครบ",
+    };
+    signupError.textContent = messages[body.error] || "สมัครไม่สำเร็จ กรุณาลองใหม่";
     return;
   }
 
-  // ถ้าโปรเจกต์เปิด "Confirm email" ไว้ ผู้ใช้ต้องกดยืนยันในอีเมลก่อนถึงจะล็อกอินได้
-  if (data.user && !data.session) {
+  // สมัครสำเร็จและ confirm ให้อัตโนมัติแล้ว (email_confirm: true ฝั่ง Edge Function)
+  // ให้ล็อกอินต่อทันทีด้วยอีเมล/รหัสผ่านเดียวกัน
+  const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
+  if (loginErr) {
     signupForm.reset();
-    signupError.style.color = "var(--amber)";
-    signupError.textContent = "สมัครสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ";
+    document.getElementById("showLogin").click();
     return;
   }
-
-  // ถ้าปิด email confirmation ไว้ จะได้ session ทันทีและเข้าแดชบอร์ดได้เลย
   showDashboard();
 });
 
@@ -146,15 +174,19 @@ function openForm(session = null) {
     formTitle.textContent = "แก้ไขไลฟ์";
     sessionIdInput.value = session.id;
     titleInput.value = session.title;
-    urlInput.value = session.youtube_url;
+    platformSelect.value = session.platform || "youtube";
+    urlInput.value = session.youtube_url || "";
+    cfUidInput.value = session.cloudflare_uid || "";
     pinInput.value = session.pin;
     setToggle(session.is_active);
   } else {
     formTitle.textContent = "สร้างไลฟ์ใหม่";
     sessionForm.reset();
     sessionIdInput.value = "";
+    platformSelect.value = "youtube";
     setToggle(false);
   }
+  togglePlatformFields(platformSelect.value);
   formCard.style.display = "block";
   formCard.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -188,12 +220,24 @@ sessionForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  const platform = platformSelect.value;
   const payload = {
     title: titleInput.value.trim(),
-    youtube_url: urlInput.value.trim(),
+    platform,
+    youtube_url: platform === "youtube" ? urlInput.value.trim() : null,
+    cloudflare_uid: platform === "cloudflare" ? cfUidInput.value.trim() : null,
     pin,
     is_active: toggleState,
   };
+
+  if (platform === "youtube" && !payload.youtube_url) {
+    formError.textContent = "กรุณาวางลิงก์ YouTube Live";
+    return;
+  }
+  if (platform === "cloudflare" && !payload.cloudflare_uid) {
+    formError.textContent = "กรุณากรอก Cloudflare Stream UID";
+    return;
+  }
 
   const id = sessionIdInput.value;
   const query = id
@@ -247,6 +291,7 @@ function renderRow(s) {
       </div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <span class="pin-chip">${s.pin}</span>
+        <span class="muted" style="font-size:12px;">${s.platform === "cloudflare" ? "Cloudflare Stream" : "YouTube"}</span>
         <span class="muted" style="font-size:12px;">สร้างเมื่อ ${created}</span>
       </div>
     </div>
