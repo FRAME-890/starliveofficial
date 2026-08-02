@@ -11,6 +11,14 @@
 <body>
 <div class="stage-bg"></div>
 
+<header id="topBar" class="top-bar" style="display:none;">
+  <div class="marquee-brand small"><span class="bulb"></span> STAR LIVE OFFICIAL</div>
+  <div class="top-bar-right">
+    <span class="viewer-badge" id="viewerCount">👁 —</span>
+    <span class="live-badge"><span class="live-dot"></span> กำลังถ่ายทอดสด</span>
+  </div>
+</header>
+
 <div id="app" style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;">
 
   <!-- PIN entry screen -->
@@ -40,14 +48,8 @@
   </div>
 
   <!-- Live player screen (hidden until PIN verified) -->
-  <div id="playerScreen" class="stage-enter" style="display:none; text-align:center;">
-    <div class="marquee-brand" style="justify-content:center; margin-bottom:10px;">
-      <span class="bulb"></span> STAR LIVE OFFICIAL <span class="bulb"></span>
-    </div>
-    <h2 class="display" id="liveTitle" style="font-size:20px; font-weight:700; margin:0 0 10px;"></h2>
-    <div class="live-badge" style="justify-content:center; margin-bottom:16px;">
-      <span class="live-dot"></span> กำลังถ่ายทอดสด
-    </div>
+  <div id="playerScreen" class="stage-enter" style="display:none; text-align:center; padding-top:56px;">
+    <h2 class="display" id="liveTitle" style="font-size:20px; font-weight:700; margin:0 0 16px;"></h2>
     <div class="player-frame">
       <div class="aspect">
         <iframe id="ytFrame" src="" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
