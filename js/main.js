@@ -1,4 +1,4 @@
-import { extractYouTubeId } from "./supabaseClient.js";
+import { supabase, extractYouTubeId } from "./supabaseClient.js";
 import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 const pinBoxes = Array.from(document.querySelectorAll(".pin-box"));
@@ -10,6 +10,8 @@ const pinScreen = document.getElementById("pinScreen");
 const playerScreen = document.getElementById("playerScreen");
 const liveTitle = document.getElementById("liveTitle");
 const ytFrame = document.getElementById("ytFrame");
+const topBar = document.getElementById("topBar");
+const viewerCountEl = document.getElementById("viewerCount");
 
 let lockoutTimer = null;
 
@@ -91,7 +93,7 @@ pinForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  enterStage(body);
+  enterStage(body, pin);
 });
 
 function showError(message) {
@@ -126,7 +128,7 @@ function startLockoutCountdown(seconds) {
   }, 1000);
 }
 
-function enterStage(session) {
+function enterStage(session, pin) {
   let src = null;
 
   if (session.platform === "cloudflare") {
@@ -143,10 +145,39 @@ function enterStage(session) {
 
   liveTitle.textContent = session.title;
   ytFrame.src = src;
+  topBar.style.display = "flex";
+  startViewerTracking(pin);
 
   pinScreen.classList.add("curtain-exit");
   setTimeout(() => {
     pinScreen.style.display = "none";
     playerScreen.style.display = "block";
   }, 480);
+}
+
+// --- นับจำนวนคนกำลังดูแบบเรียลไทม์ (Supabase Realtime Presence) ---
+// นับตาม PIN: ใครก็ตามที่เข้าห้องไลฟ์เดียวกันตอนนี้จะถูกนับรวมกัน
+// เป็นการนับ "จำนวนแท็บ/อุปกรณ์ที่เปิดหน้านี้อยู่" ไม่ใช่การเก็บข้อมูลส่วนตัวใด ๆ
+function startViewerTracking(pin) {
+  const viewerId = crypto.randomUUID();
+  const channel = supabase.channel(`viewers:${pin}`, {
+    config: { presence: { key: viewerId } },
+  });
+
+  channel
+    .on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState();
+      const count = Object.keys(state).length;
+      viewerCountEl.textContent = `👁 ${count.toLocaleString("th-TH")} คนกำลังดู`;
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({ online_at: new Date().toISOString() });
+      }
+    });
+
+  // เอาตัวเองออกจากการนับเมื่อปิดแท็บ/ออกจากหน้า
+  window.addEventListener("beforeunload", () => {
+    channel.unsubscribe();
+  });
 }
