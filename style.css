@@ -209,6 +209,42 @@ html, body {
   animation: bulb-pulse 1.4s ease-in-out infinite;
 }
 
+/* Fixed top bar: brand top-left, live badge + viewer count top-right */
+.top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, rgba(8, 7, 13, 0.9), transparent);
+}
+.marquee-brand.small {
+  font-size: 11px;
+  gap: 7px;
+}
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.viewer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "Prompt", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  padding: 5px 12px;
+  border-radius: 20px;
+}
+
 .player-frame {
   width: min(920px, 94vw);
   border-radius: var(--radius);
@@ -327,4 +363,11 @@ html, body {
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
+}
+
+@media (max-width: 420px) {
+  .top-bar { padding: 12px 14px; }
+  .marquee-brand.small { font-size: 9.5px; gap: 5px; }
+  .viewer-badge, .live-badge { font-size: 10.5px; }
+  .top-bar-right { gap: 8px; }
 }
