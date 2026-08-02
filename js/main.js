@@ -11,7 +11,7 @@ const playerScreen = document.getElementById("playerScreen");
 const liveTitle = document.getElementById("liveTitle");
 const ytFrame = document.getElementById("ytFrame");
 const topBar = document.getElementById("topBar");
-const viewerCountEl = document.getElementById("viewerCount");
+const viewerCountText = document.getElementById("viewerCountText");
 
 let lockoutTimer = null;
 
@@ -168,7 +168,7 @@ function startViewerTracking(pin) {
     .on("presence", { event: "sync" }, () => {
       const state = channel.presenceState();
       const count = Object.keys(state).length;
-      viewerCountEl.textContent = `👁 ${count.toLocaleString("th-TH")} คนกำลังดู`;
+      viewerCountText.textContent = `${count.toLocaleString("en-US")} view`;
     })
     .subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
