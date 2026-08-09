@@ -36,23 +36,20 @@
         <span class="bulb"></span> STAR LIVE OFFICIAL <span class="bulb"></span>
       </div>
       <h1 class="display" style="font-size:22px; font-weight:700; margin:14px 0 4px;">ห้องรับชมถ่ายทอดสดส่วนตัว</h1>
-      <p class="muted" style="font-size:13.5px; margin:0;">กรอกรหัสรับชม 8 หลักที่ได้รับ เพื่อเข้าชมการถ่ายทอดสด</p>
+      <p class="muted" style="font-size:13.5px; margin:0;">กรอกรหัส PIN 6 หลักที่ได้รับ เพื่อเข้าชมการถ่ายทอดสด</p>
     </div>
 
     <div class="perforation"></div>
 
     <form id="pinForm" autocomplete="off">
-      <input
-        id="codeInput"
-        class="code-input"
-        type="text"
-        inputmode="text"
-        autocapitalize="characters"
-        autocomplete="off"
-        spellcheck="false"
-        maxlength="8"
-        placeholder="STXXXXXX"
-      />
+      <div class="pin-row" id="pinRow">
+        <input class="pin-box" inputmode="numeric" maxlength="1" data-idx="0" />
+        <input class="pin-box" inputmode="numeric" maxlength="1" data-idx="1" />
+        <input class="pin-box" inputmode="numeric" maxlength="1" data-idx="2" />
+        <input class="pin-box" inputmode="numeric" maxlength="1" data-idx="3" />
+        <input class="pin-box" inputmode="numeric" maxlength="1" data-idx="4" />
+        <input class="pin-box" inputmode="numeric" maxlength="1" data-idx="5" />
+      </div>
       <p class="error-text" id="errorText"></p>
       <button type="submit" class="btn-marquee" id="submitBtn">เข้าสู่การถ่ายทอดสด</button>
     </form>
