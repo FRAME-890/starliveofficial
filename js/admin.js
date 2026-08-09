@@ -18,28 +18,16 @@ const formTitle = document.getElementById("formTitle");
 const sessionForm = document.getElementById("sessionForm");
 const sessionIdInput = document.getElementById("sessionId");
 const titleInput = document.getElementById("titleInput");
-const eventDatesInput = document.getElementById("eventDatesInput");
 const platformSelect = document.getElementById("platformSelect");
 const youtubeField = document.getElementById("youtubeField");
 const cloudflareField = document.getElementById("cloudflareField");
 const urlInput = document.getElementById("urlInput");
 const cfUidInput = document.getElementById("cfUidInput");
+const pinInput = document.getElementById("pinInput");
 const activeToggle = document.getElementById("activeToggle");
 const formError = document.getElementById("formError");
 const sessionList = document.getElementById("sessionList");
 const emptyState = document.getElementById("emptyState");
-
-const codeFormCard = document.getElementById("codeFormCard");
-const codeForm = document.getElementById("codeForm");
-const codeConcertSelect = document.getElementById("codeConcertSelect");
-const noConcertHint = document.getElementById("noConcertHint");
-const customerNameInput = document.getElementById("customerNameInput");
-const orderDateInput = document.getElementById("orderDateInput");
-const validUntilInput = document.getElementById("validUntilInput");
-const codeFormError = document.getElementById("codeFormError");
-const finishCodeBtn = document.getElementById("finishCodeBtn");
-const codeResult = document.getElementById("codeResult");
-const codeMessageText = document.getElementById("codeMessageText");
 
 platformSelect.addEventListener("change", () => togglePlatformFields(platformSelect.value));
 
@@ -93,7 +81,7 @@ document.getElementById("showLogin").addEventListener("click", (e) => {
   signupForm.style.display = "none";
   loginForm.style.display = "block";
   authTitle.textContent = "เข้าสู่ระบบผู้ดูแล";
-  authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัสลูกค้า";
+  authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัส PIN";
 });
 
 // ---------- สมัครสมาชิกแอดมิน (ผ่าน Edge Function — เช็ครหัสเชิญฝั่งเซิร์ฟเวอร์) ----------
@@ -151,6 +139,8 @@ signupForm.addEventListener("submit", async (e) => {
     return;
   }
 
+  // สมัครสำเร็จและ confirm ให้อัตโนมัติแล้ว (email_confirm: true ฝั่ง Edge Function)
+  // ให้ล็อกอินต่อทันทีด้วยอีเมล/รหัสผ่านเดียวกัน
   const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
   if (loginErr) {
     signupForm.reset();
@@ -160,6 +150,7 @@ signupForm.addEventListener("submit", async (e) => {
   showDashboard();
 });
 
+// เผื่อ session หมดอายุระหว่างใช้งาน (เช่น token ถูก revoke) ให้เด้งกลับหน้า login อัตโนมัติ
 supabase.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_OUT") {
     dashboard.style.display = "none";
@@ -173,11 +164,8 @@ function showDashboard() {
   loadSessions();
 }
 
-// ---------- Concert form open/close ----------
-document.getElementById("newSessionBtn").addEventListener("click", () => {
-  closeCodeForm();
-  openForm();
-});
+// ---------- Form open/close ----------
+document.getElementById("newSessionBtn").addEventListener("click", () => openForm());
 document.getElementById("cancelFormBtn").addEventListener("click", () => closeForm());
 
 function openForm(session = null) {
@@ -186,10 +174,10 @@ function openForm(session = null) {
     formTitle.textContent = "แก้ไขไลฟ์";
     sessionIdInput.value = session.id;
     titleInput.value = session.title;
-    eventDatesInput.value = session.event_dates || "";
     platformSelect.value = session.platform || "youtube";
     urlInput.value = session.youtube_url || "";
     cfUidInput.value = session.cloudflare_uid || "";
+    pinInput.value = session.pin;
     setToggle(session.is_active);
   } else {
     formTitle.textContent = "สร้างไลฟ์ใหม่";
@@ -208,7 +196,7 @@ function closeForm() {
   sessionForm.reset();
 }
 
-// ---------- Active toggle (concert) ----------
+// ---------- Active toggle ----------
 let toggleState = false;
 function setToggle(state) {
   toggleState = state;
@@ -216,18 +204,29 @@ function setToggle(state) {
 }
 activeToggle.addEventListener("click", () => setToggle(!toggleState));
 
-// ---------- Save concert (create or update) ----------
+// ---------- Random PIN ----------
+document.getElementById("randomPinBtn").addEventListener("click", () => {
+  pinInput.value = String(Math.floor(100000 + Math.random() * 900000));
+});
+
+// ---------- Save (create or update) ----------
 sessionForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   formError.textContent = "";
 
+  const pin = pinInput.value.trim();
+  if (!/^\d{6}$/.test(pin)) {
+    formError.textContent = "รหัส PIN ต้องเป็นตัวเลข 6 หลัก";
+    return;
+  }
+
   const platform = platformSelect.value;
   const payload = {
     title: titleInput.value.trim(),
-    event_dates: eventDatesInput.value.trim() || null,
     platform,
     youtube_url: platform === "youtube" ? urlInput.value.trim() : null,
     cloudflare_uid: platform === "cloudflare" ? cfUidInput.value.trim() : null,
+    pin,
     is_active: toggleState,
   };
 
@@ -248,7 +247,9 @@ sessionForm.addEventListener("submit", async (e) => {
   const { error } = await query;
 
   if (error) {
-    formError.textContent = "เกิดข้อผิดพลาด: " + error.message;
+    formError.textContent = error.message.includes("duplicate")
+      ? "รหัส PIN นี้ถูกใช้งานแล้ว กรุณาเลือกรหัสอื่น"
+      : "เกิดข้อผิดพลาด: " + error.message;
     return;
   }
 
@@ -289,17 +290,26 @@ function renderRow(s) {
         ${escapeHtml(s.title)}
       </div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        ${s.event_dates ? `<span class="muted" style="font-size:12px;">${escapeHtml(s.event_dates)}</span>` : ""}
+        <span class="pin-chip">${s.pin}</span>
         <span class="muted" style="font-size:12px;">${s.platform === "cloudflare" ? "Cloudflare Stream" : "YouTube"}</span>
         <span class="muted" style="font-size:12px;">สร้างเมื่อ ${created}</span>
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+      <button class="icon-btn ghost" data-action="copy">คัดลอก PIN</button>
       <button class="toggle ${s.is_active ? "on" : ""}" data-action="toggle" title="เปิด/ปิดการถ่ายทอดสด"></button>
       <button class="icon-btn ghost" data-action="edit">แก้ไข</button>
       <button class="icon-btn" data-action="delete">ลบ</button>
     </div>
   `;
+
+  row.querySelector('[data-action="copy"]').addEventListener("click", () => {
+    navigator.clipboard.writeText(s.pin);
+    const btn = row.querySelector('[data-action="copy"]');
+    const original = btn.textContent;
+    btn.textContent = "คัดลอกแล้ว";
+    setTimeout(() => (btn.textContent = original), 1200);
+  });
 
   row.querySelector('[data-action="toggle"]').addEventListener("click", async () => {
     await supabase.from("live_sessions").update({ is_active: !s.is_active }).eq("id", s.id);
@@ -309,7 +319,7 @@ function renderRow(s) {
   row.querySelector('[data-action="edit"]').addEventListener("click", () => openForm(s));
 
   row.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-    if (!confirm(`ลบไลฟ์ "${s.title}" ใช่หรือไม่? รหัสลูกค้าที่ผูกกับไลฟ์นี้จะถูกลบไปด้วย`)) return;
+    if (!confirm(`ลบไลฟ์ "${s.title}" ใช่หรือไม่?`)) return;
     await supabase.from("live_sessions").delete().eq("id", s.id);
     loadSessions();
   });
@@ -322,152 +332,3 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
-
-// ============================================================
-// สร้างรหัสลูกค้า (1 รหัส = 1 ออเดอร์ ผูกกับคอนเสิร์ต + วันหมดอายุ)
-// ============================================================
-let concertsById = {};
-
-document.getElementById("newCodeBtn").addEventListener("click", () => {
-  closeForm();
-  openCodeForm();
-});
-document.getElementById("cancelCodeFormBtn").addEventListener("click", () => closeCodeForm());
-document.getElementById("closeCodeResultBtn").addEventListener("click", () => closeCodeForm());
-
-async function openCodeForm() {
-  codeFormError.textContent = "";
-  codeForm.reset();
-  codeForm.style.display = "block";
-  codeResult.style.display = "none";
-  orderDateInput.value = new Date().toISOString().slice(0, 10);
-
-  await loadConcertsIntoSelect();
-
-  codeFormCard.style.display = "block";
-  codeFormCard.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-function closeCodeForm() {
-  codeFormCard.style.display = "none";
-  codeForm.reset();
-  codeForm.style.display = "block";
-  codeResult.style.display = "none";
-}
-
-async function loadConcertsIntoSelect() {
-  const { data, error } = await supabase
-    .from("live_sessions")
-    .select("id, title, event_dates")
-    .order("created_at", { ascending: false });
-
-  concertsById = {};
-  codeConcertSelect.innerHTML = "";
-
-  if (error || !data || data.length === 0) {
-    noConcertHint.style.display = "block";
-    finishCodeBtn.disabled = true;
-    return;
-  }
-
-  noConcertHint.style.display = "none";
-  finishCodeBtn.disabled = false;
-
-  data.forEach((c) => {
-    concertsById[c.id] = c;
-    const opt = document.createElement("option");
-    opt.value = c.id;
-    opt.textContent = c.title;
-    codeConcertSelect.appendChild(opt);
-  });
-}
-
-function generateCustomerCode() {
-  // ตัดตัวอักษร/ตัวเลขที่สับสนง่ายออก (O, 0, I, 1, L)
-  const charset = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  let rand = "";
-  for (let i = 0; i < 6; i++) {
-    rand += charset[Math.floor(Math.random() * charset.length)];
-  }
-  return "ST" + rand;
-}
-
-codeForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  codeFormError.textContent = "";
-
-  const concertId = codeConcertSelect.value;
-  const concert = concertsById[concertId];
-  const customerName = customerNameInput.value.trim();
-  const orderDate = orderDateInput.value;
-  const validUntilLocal = validUntilInput.value;
-
-  if (!concert) {
-    codeFormError.textContent = "กรุณาเลือกคอนเสิร์ต";
-    return;
-  }
-  if (!customerName) {
-    codeFormError.textContent = "กรุณากรอกชื่อลูกค้า";
-    return;
-  }
-  if (!orderDate || !validUntilLocal) {
-    codeFormError.textContent = "กรุณากรอกวันที่ซื้อและวันหมดอายุการรับชม";
-    return;
-  }
-
-  finishCodeBtn.disabled = true;
-  finishCodeBtn.textContent = "กำลังสร้างรหัส...";
-
-  const validUntilIso = new Date(validUntilLocal).toISOString();
-
-  // ลองสุ่มรหัสแล้ว insert ถ้าชนกับรหัสเดิม (unique) ให้สุ่มใหม่ ลองสูงสุด 5 ครั้ง
-  let insertedCode = null;
-  let lastError = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const code = generateCustomerCode();
-    const { error } = await supabase.from("customer_codes").insert({
-      code,
-      live_session_id: concertId,
-      customer_name: customerName,
-      order_date: orderDate,
-      valid_until: validUntilIso,
-    });
-
-    if (!error) {
-      insertedCode = code;
-      break;
-    }
-    lastError = error;
-    if (!error.message.includes("duplicate")) break; // error อื่นที่ไม่ใช่รหัสชนกัน ไม่ต้องลองซ้ำ
-  }
-
-  finishCodeBtn.disabled = false;
-  finishCodeBtn.textContent = "เสร็จสิ้น";
-
-  if (!insertedCode) {
-    codeFormError.textContent = "สร้างรหัสไม่สำเร็จ: " + (lastError?.message || "ไม่ทราบสาเหตุ กรุณาลองใหม่");
-    return;
-  }
-
-  const siteUrl = window.location.origin;
-  const message = `${concert.title}
-วัน: ${concert.event_dates || "-"}
-ขอบคุณที่ใช้บริการ STARLIVE OFFICIAL ครับ💙
-รหัสชมไลฟ์และรีรัน: ${insertedCode} *รหัสสามารถรับชมได้1เครื่องต่อรหัส*
-ลิงก์เว็บไซต์รับชมไลฟ์และรีรัน: ${siteUrl}
-💬 มีแอดมินดูแลตลอดการรับชม
-หากพบปัญหาในการเข้ากลุ่มหรือรับชม สามารถแจ้งแอดมินได้ตลอดครับ
-ขอบคุณที่ไว้วางใจ STARLIVE OFFICIAL ขอให้สนุกกับการรับชมคอนเสิร์ตครับ 💙`;
-
-  codeMessageText.value = message;
-  codeForm.style.display = "none";
-  codeResult.style.display = "block";
-});
-
-document.getElementById("copyCodeMessageBtn").addEventListener("click", () => {
-  navigator.clipboard.writeText(codeMessageText.value);
-  const btn = document.getElementById("copyCodeMessageBtn");
-  const original = btn.textContent;
-  btn.textContent = "คัดลอกแล้ว";
-  setTimeout(() => (btn.textContent = original), 1200);
-});
