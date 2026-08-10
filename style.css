@@ -109,6 +109,7 @@ html, body {
 .perforation::before { left: -9px; }
 .perforation::after { right: -9px; }
 
+/* Code input: single field for the 8-character per-order code (STXXXXXX) */
 /* PIN input: six bulbs that light up amber as they fill */
 .pin-row {
   display: flex;
@@ -140,10 +141,69 @@ html, body {
 }
 .pin-row.shake { animation: shake 0.4s; }
 .pin-row.shake .pin-box { border-color: var(--crimson); }
+
+.code-input {
+  display: block;
+  width: 100%;
+  margin: 26px 0 8px;
+  padding: 14px 16px;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: "Prompt", sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+.code-input::placeholder {
+  color: var(--muted);
+  opacity: 0.5;
+  letter-spacing: 0.18em;
+}
+.code-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(242, 183, 5, 0.18), 0 0 14px rgba(242, 183, 5, 0.35);
+}
+.code-input.filled {
+  border-color: var(--amber-dim);
+  box-shadow: 0 0 10px rgba(242, 183, 5, 0.25);
+}
+.code-input.shake { animation: shake 0.4s; border-color: var(--crimson); }
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   20%, 60% { transform: translateX(-6px); }
   40%, 80% { transform: translateX(6px); }
+}
+
+/* วัน/รอบที่เลือกได้ ตอนรหัสมีสิทธิ์ดูมากกว่า 1 วัน */
+.day-option-btn {
+  width: 100%;
+  padding: 14px 18px;
+  text-align: left;
+  font-family: "Prompt", sans-serif;
+  font-weight: 600;
+  font-size: 14.5px;
+  color: var(--text);
+  background: rgba(242, 183, 5, 0.06);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+.day-option-btn:hover {
+  border-color: var(--amber);
+  background: rgba(242, 183, 5, 0.14);
+  transform: translateY(-1px);
+}
+.day-option-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .btn-marquee {
