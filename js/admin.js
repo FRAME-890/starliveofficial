@@ -49,7 +49,6 @@ loginForm.addEventListener("submit", async (e) => {
 
   const email = document.getElementById("adminEmail").value.trim();
   const password = document.getElementById("adminPassword").value;
-
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   loginBtn.disabled = false;
@@ -67,7 +66,6 @@ document.getElementById("logoutBtn").addEventListener("click", async () => {
   location.reload();
 });
 
-// ---------- สลับระหว่างฟอร์ม เข้าสู่ระบบ / สมัครสมาชิก ----------
 document.getElementById("showSignup").addEventListener("click", (e) => {
   e.preventDefault();
   loginForm.style.display = "none";
@@ -84,7 +82,6 @@ document.getElementById("showLogin").addEventListener("click", (e) => {
   authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัส PIN";
 });
 
-// ---------- สมัครสมาชิกแอดมิน (ผ่าน Edge Function — เช็ครหัสเชิญฝั่งเซิร์ฟเวอร์) ----------
 signupForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   signupError.textContent = "";
@@ -110,11 +107,7 @@ signupForm.addEventListener("submit", async (e) => {
   try {
     res = await fetch(`${FUNCTIONS_URL}/admin-signup`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
       body: JSON.stringify({ email, password, inviteCode }),
     });
     body = await res.json();
@@ -139,8 +132,6 @@ signupForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  // สมัครสำเร็จและ confirm ให้อัตโนมัติแล้ว (email_confirm: true ฝั่ง Edge Function)
-  // ให้ล็อกอินต่อทันทีด้วยอีเมล/รหัสผ่านเดียวกัน
   const { error: loginErr } = await supabase.auth.signInWithPassword({ email, password });
   if (loginErr) {
     signupForm.reset();
@@ -150,7 +141,6 @@ signupForm.addEventListener("submit", async (e) => {
   showDashboard();
 });
 
-// เผื่อ session หมดอายุระหว่างใช้งาน (เช่น token ถูก revoke) ให้เด้งกลับหน้า login อัตโนมัติ
 supabase.auth.onAuthStateChange((event) => {
   if (event === "SIGNED_OUT") {
     dashboard.style.display = "none";
@@ -164,7 +154,7 @@ function showDashboard() {
   loadSessions();
 }
 
-// ---------- Form open/close ----------
+// ---------- Session form open/close ----------
 document.getElementById("newSessionBtn").addEventListener("click", () => openForm());
 document.getElementById("cancelFormBtn").addEventListener("click", () => closeForm());
 
@@ -271,7 +261,6 @@ async function loadSessions() {
 
   sessionList.innerHTML = "";
   emptyState.style.display = data.length === 0 ? "block" : "none";
-
   data.forEach((s) => sessionList.appendChild(renderRow(s)));
 }
 
@@ -279,10 +268,7 @@ function renderRow(s) {
   const row = document.createElement("div");
   row.className = "session-row";
 
-  const created = new Date(s.created_at).toLocaleString("th-TH", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const created = new Date(s.created_at).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
 
   row.innerHTML = `
     <div style="min-width:0;">
