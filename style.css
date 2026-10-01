@@ -455,3 +455,22 @@ html, body {
   .viewer-badge, .live-badge { font-size: 10px; padding: 4px 8px; }
   .top-bar-right { gap: 4px; }
 }
+
+/* ===== ระบบทดลองรับชม ===== */
+.trial-note {
+  display: inline-block;
+  margin: 14px auto 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  background: rgba(255, 215, 0, 0.1);
+  color: #ffd700;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pass-card { text-align: center; }
+.trial-expired {
+  margin: 12px 0 0;
+  color: #ff8a8a;
+  font-size: 13px;
+}
