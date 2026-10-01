@@ -114,7 +114,11 @@ async function fetchDemoSession() {
     body: "{}",
   });
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error("demo_failed");
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.text()).slice(0, 160); } catch (e) {}
+    throw new Error(`HTTP ${res.status} ${detail}`);
+  }
   return await res.json();
 }
 
@@ -127,7 +131,8 @@ async function startDemo() {
     session = await fetchDemoSession();
   } catch (err) {
     resetSubmit();
-    showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
+    console.error("demo-session error:", err);
+    showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง [" + (err.message || err) + "]");
     return;
   }
   resetSubmit();
