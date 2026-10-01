@@ -23,7 +23,6 @@ const youtubeField = document.getElementById("youtubeField");
 const cloudflareField = document.getElementById("cloudflareField");
 const urlInput = document.getElementById("urlInput");
 const cfUidInput = document.getElementById("cfUidInput");
-const pinInput = document.getElementById("pinInput");
 const activeToggle = document.getElementById("activeToggle");
 const formError = document.getElementById("formError");
 const sessionList = document.getElementById("sessionList");
@@ -79,7 +78,7 @@ document.getElementById("showLogin").addEventListener("click", (e) => {
   signupForm.style.display = "none";
   loginForm.style.display = "block";
   authTitle.textContent = "เข้าสู่ระบบผู้ดูแล";
-  authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสดและรหัส PIN";
+  authSubtitle.textContent = "สำหรับควบคุมการถ่ายทอดสด";
 });
 
 signupForm.addEventListener("submit", async (e) => {
@@ -167,7 +166,6 @@ function openForm(session = null) {
     platformSelect.value = session.platform || "youtube";
     urlInput.value = session.youtube_url || "";
     cfUidInput.value = session.cloudflare_uid || "";
-    pinInput.value = session.pin;
     setToggle(session.is_active);
   } else {
     formTitle.textContent = "สร้างไลฟ์ใหม่";
@@ -194,21 +192,10 @@ function setToggle(state) {
 }
 activeToggle.addEventListener("click", () => setToggle(!toggleState));
 
-// ---------- Random PIN ----------
-document.getElementById("randomPinBtn").addEventListener("click", () => {
-  pinInput.value = String(Math.floor(100000 + Math.random() * 900000));
-});
-
 // ---------- Save (create or update) ----------
 sessionForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   formError.textContent = "";
-
-  const pin = pinInput.value.trim();
-  if (!/^\d{6}$/.test(pin)) {
-    formError.textContent = "รหัส PIN ต้องเป็นตัวเลข 6 หลัก";
-    return;
-  }
 
   const platform = platformSelect.value;
   const payload = {
@@ -216,7 +203,6 @@ sessionForm.addEventListener("submit", async (e) => {
     platform,
     youtube_url: platform === "youtube" ? urlInput.value.trim() : null,
     cloudflare_uid: platform === "cloudflare" ? cfUidInput.value.trim() : null,
-    pin,
     is_active: toggleState,
   };
 
@@ -237,9 +223,7 @@ sessionForm.addEventListener("submit", async (e) => {
   const { error } = await query;
 
   if (error) {
-    formError.textContent = error.message.includes("duplicate")
-      ? "รหัส PIN นี้ถูกใช้งานแล้ว กรุณาเลือกรหัสอื่น"
-      : "เกิดข้อผิดพลาด: " + error.message;
+    formError.textContent = "เกิดข้อผิดพลาด: " + error.message;
     return;
   }
 
@@ -276,26 +260,16 @@ function renderRow(s) {
         ${escapeHtml(s.title)}
       </div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <span class="pin-chip">${s.pin}</span>
         <span class="muted" style="font-size:12px;">${s.platform === "cloudflare" ? "Cloudflare Stream" : "YouTube"}</span>
         <span class="muted" style="font-size:12px;">สร้างเมื่อ ${created}</span>
       </div>
     </div>
     <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
-      <button class="icon-btn ghost" data-action="copy">คัดลอก PIN</button>
       <button class="toggle ${s.is_active ? "on" : ""}" data-action="toggle" title="เปิด/ปิดการถ่ายทอดสด"></button>
       <button class="icon-btn ghost" data-action="edit">แก้ไข</button>
       <button class="icon-btn" data-action="delete">ลบ</button>
     </div>
   `;
-
-  row.querySelector('[data-action="copy"]').addEventListener("click", () => {
-    navigator.clipboard.writeText(s.pin);
-    const btn = row.querySelector('[data-action="copy"]');
-    const original = btn.textContent;
-    btn.textContent = "คัดลอกแล้ว";
-    setTimeout(() => (btn.textContent = original), 1200);
-  });
 
   row.querySelector('[data-action="toggle"]').addEventListener("click", async () => {
     await supabase.from("live_sessions").update({ is_active: !s.is_active }).eq("id", s.id);
