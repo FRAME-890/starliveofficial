@@ -1,5 +1,5 @@
+import { SUPABASE_ANON_KEY, FUNCTIONS_URL, DEMO_SECONDS } from "./config.js";
 import { extractYouTubeId } from "./supabaseClient.js";
-import { SUPABASE_ANON_KEY, FUNCTIONS_URL } from "./config.js";
 
 const pinBoxes = Array.from(document.querySelectorAll(".pin-box"));
 const pinRow = document.getElementById("pinRow");
@@ -11,8 +11,38 @@ const playerScreen = document.getElementById("playerScreen");
 const liveTitle = document.getElementById("liveTitle");
 const ytFrame = document.getElementById("ytFrame");
 const topBar = document.getElementById("topBar");
+const countdownEl = document.getElementById("countdown");
+const expiredNote = document.getElementById("expiredNote");
 
-let lockoutTimer = null;
+const params = new URLSearchParams(location.search);
+const expired = params.has("expired");
+
+// รหัสที่สุ่มได้ เก็บไว้ในหน่วยความจำเท่านั้น (หน้า expired จะไม่มีรหัส)
+let currentPin = null;
+
+function randomPin() {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return String(buf[0] % 1000000).padStart(6, "0");
+}
+
+function fillPin(pin) {
+  pin.split("").forEach((d, i) => {
+    pinBoxes[i].value = d;
+    pinBoxes[i].classList.add("filled");
+  });
+}
+
+// --- ตอนเปิดหน้า ---
+if (expired) {
+  // หมดเวลา: ช่องรหัสว่าง ไม่มีรหัสขึ้นมาให้
+  expiredNote.style.display = "block";
+  pinBoxes[0].focus();
+} else {
+  // กดลิงก์เข้ามาใหม่ = สุ่มรหัสใหม่ + กรอกให้อัตโนมัติ
+  currentPin = randomPin();
+  fillPin(currentPin);
+}
 
 // --- PIN box behaviour: auto-advance, backspace, paste-friendly ---
 pinBoxes.forEach((box, i) => {
@@ -41,7 +71,7 @@ pinBoxes.forEach((box, i) => {
   });
 });
 
-pinForm.addEventListener("submit", async (e) => {
+pinForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const pin = pinBoxes.map((b) => b.value).join("");
 
@@ -50,49 +80,13 @@ pinForm.addEventListener("submit", async (e) => {
     return;
   }
 
-  submitBtn.disabled = true;
-  submitBtn.textContent = "กำลังตรวจสอบ...";
+  if (!currentPin || pin !== currentPin) {
+    showError("รหัส PIN ไม่ถูกต้อง หรือหมดอายุ กรุณากดลิงก์ทดลองรับชมใหม่อีกครั้ง");
+    return;
+  }
+
   errorText.textContent = "";
-
-  let res, body;
-  try {
-    res = await fetch(`${FUNCTIONS_URL}/verify-pin`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ pin }),
-    });
-    body = await res.json();
-  } catch (err) {
-    submitBtn.disabled = false;
-    submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
-    showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
-    return;
-  }
-
-  submitBtn.disabled = false;
-  submitBtn.textContent = "เข้าสู่การถ่ายทอดสด";
-
-  if (res.status === 429) {
-    startLockoutCountdown(body.retry_after_seconds ?? 300);
-    return;
-  }
-
-  if (!res.ok) {
-    if (typeof body.attempts_left === "number" && body.attempts_left > 0) {
-      showError(`รหัส PIN ไม่ถูกต้อง เหลืออีก ${body.attempts_left} ครั้งก่อนถูกล็อกชั่วคราว`);
-    } else if (body.locked) {
-      startLockoutCountdown(300);
-    } else {
-      showError("รหัส PIN ไม่ถูกต้อง หรือหมดอายุ");
-    }
-    return;
-  }
-
-  enterStage(body);
+  startDemo();
 });
 
 function showError(message) {
@@ -102,47 +96,70 @@ function showError(message) {
   pinRow.classList.add("shake");
 }
 
-function startLockoutCountdown(seconds) {
-  clearInterval(lockoutTimer);
-  submitBtn.disabled = true;
-  let remaining = seconds;
-
-  const render = () => {
-    const m = Math.floor(remaining / 60);
-    const s = String(remaining % 60).padStart(2, "0");
-    errorText.textContent = `กรอกผิดครบ 3 ครั้ง กรุณารอ ${m}:${s} แล้วลองใหม่`;
-  };
-  render();
-
-  lockoutTimer = setInterval(() => {
-    remaining -= 1;
-    if (remaining <= 0) {
-      clearInterval(lockoutTimer);
-      submitBtn.disabled = false;
-      errorText.textContent = "";
-      return;
-    }
-    render();
-  }, 1000);
+function formatTime(sec) {
+  const m = Math.floor(sec / 60);
+  const s = String(sec % 60).padStart(2, "0");
+  return `${m}:${s}`;
 }
 
-function enterStage(session) {
-  let src = null;
+// ขอ token ทดลองรับชมจาก Supabase Edge Function "demo-session" (ใช้ไลฟ์ที่เปิดใช้งานล่าสุดในหน้า /admin)
+async function fetchDemoSession() {
+  const res = await fetch(`${FUNCTIONS_URL}/demo-session`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+    body: "{}",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("demo_failed");
+  return await res.json();
+}
 
+async function startDemo() {
+  submitBtn.disabled = true;
+  submitBtn.textContent = "กำลังตรวจสอบ...";
+
+  let session;
+  try {
+    session = await fetchDemoSession();
+  } catch (err) {
+    resetSubmit();
+    showError("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่อีกครั้ง");
+    return;
+  }
+  resetSubmit();
+
+  if (!session) {
+    showError("ขณะนี้ยังไม่มีคลิปให้ทดลองรับชม กรุณาลองใหม่ภายหลัง");
+    return;
+  }
+
+  let src = null;
   if (session.platform === "cloudflare") {
-    const code = session.customer_code;
-    src = `https://customer-${code}.cloudflarestream.com/${session.token}/iframe?autoplay=true`;
+    src = `https://customer-${session.customer_code}.cloudflarestream.com/${session.token}/iframe?autoplay=true`;
   } else {
     const videoId = extractYouTubeId(session.youtube_url);
     if (!videoId) {
-      showError("ลิงก์การถ่ายทอดสดไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ");
+      showError("ลิงก์คลิปไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบ");
       return;
     }
     src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
   }
 
-  liveTitle.textContent = session.title;
+  enterStage(session, src);
+}
+
+function resetSubmit() {
+  submitBtn.disabled = false;
+  submitBtn.textContent = "เริ่มทดลองรับชม";
+}
+
+function enterStage(session, src) {
   ytFrame.src = src;
+  liveTitle.textContent = session.title || "ทดลองรับชม";
   topBar.style.display = "flex";
 
   pinScreen.classList.add("curtain-exit");
@@ -150,4 +167,18 @@ function enterStage(session) {
     pinScreen.style.display = "none";
     playerScreen.style.display = "block";
   }, 480);
+
+  // นับถอยหลังด้วยเวลาจริง (กันแท็บถูกหน่วง) ครบเวลาแล้วเด้งกลับหน้าใส่รหัส
+  const deadline = Date.now() + DEMO_SECONDS * 1000;
+  const tick = () => {
+    const left = Math.ceil((deadline - Date.now()) / 1000);
+    if (left <= 0) {
+      ytFrame.src = "";
+      location.replace("./?expired=1");
+      return;
+    }
+    countdownEl.textContent = `เหลือ ${formatTime(left)}`;
+    setTimeout(tick, 250);
+  };
+  tick();
 }
